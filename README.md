@@ -1,4 +1,16 @@
-# LoxBerry Plugin – FHEM
+# LoxBerry FHEM Plugin
+
+Original Author:
+Michael Schlenstedt
+
+This repository is a community-maintained continuation of the original
+LoxBerry FHEM plugin.
+
+Compatibility updates:
+- Debian 12
+- Debian 13
+- LoxBerry 4
+- Modern APT key handling
 
 FHEM integration plugin for the LoxBerry home automation platform.
 
