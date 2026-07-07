@@ -1,23 +1,41 @@
 #!/bin/sh
 
-ARGV0=$0 # Zero argument is shell command
-ARGV1=$1 # First argument is temp folder during install
-ARGV2=$2 # Second argument is Plugin-Name for scipts etc.
-ARGV3=$3 # Third argument is Plugin installation folder
-ARGV4=$4 # Forth argument is Plugin version
-ARGV5=$5 # Fifth argument is Base folder of LoxBerry
+#
+# postupgrade.sh
+# Restore plugin data after successful upgrade
+#
 
-echo "<INFO> Copy back existing config files"
-cp -p -v -r /tmp/$ARGV1\_upgrade/config/$ARGV3 $ARGV5/config/plugins/
+COMMAND="$0"
+PTEMPDIR="$1"
+PSHNAME="$2"
+PDIR="$3"
+PVERSION="$4"
+LBHOMEDIR="$5"
 
-echo "<INFO> Copy back existing data files"
-cp -p -v -r /tmp/$ARGV1\_upgrade/data/$ARGV3 $ARGV5/data/plugins/
+BACKUP="/tmp/${PTEMPDIR}_upgrade"
 
-echo "<INFO> Copy back existing log files"
-cp -p -v -r /tmp/$ARGV1\_upgrade/log/$ARGV3 $ARGV5/log/plugins/
+restore_dir() {
+    SRC="$1"
+    DST="$2"
 
-echo "<INFO> Remove temporary folders"
-rm -r /tmp/$ARGV1\_upgrade
+    if [ -d "$SRC" ]; then
+        echo "<INFO> Restoring $(basename "$SRC")"
+        cp -a "$SRC" "$DST"
+    else
+        echo "<INFO> No backup for $(basename "$SRC") found."
+    fi
+}
 
-# Exit with Status 0
+echo "<INFO> Restoring plugin data..."
+
+restore_dir "$BACKUP/config/$PDIR" "$LBHOMEDIR/config/plugins/"
+restore_dir "$BACKUP/data/$PDIR"   "$LBHOMEDIR/data/plugins/"
+restore_dir "$BACKUP/log/$PDIR"    "$LBHOMEDIR/log/plugins/"
+
+echo "<INFO> Removing temporary backup"
+
+rm -rf "$BACKUP"
+
+echo "<OK> Upgrade completed."
+
 exit 0

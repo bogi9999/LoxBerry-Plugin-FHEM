@@ -1,51 +1,130 @@
 #!/bin/bash
- 
-# To use important variables from command line use the following code:
-COMMAND=$0    # Zero argument is shell command
-PTEMPDIR=$1   # First argument is temp folder during install
-PSHNAME=$2    # Second argument is Plugin-Name for scipts etc.
-PDIR=$3       # Third argument is Plugin installation folder
-PVERSION=$4   # Forth argument is Plugin version
-#LBHOMEDIR=$5 # Comes from /etc/environment now. Fifth argument is
-              # Base folder of LoxBerry
-PTEMPPATH=$6  # Sixth argument is full temp path during install (see also $1)
- 
-# Combine them with /etc/environment
+
+#
+# postroot.sh
+# Executed as root after plugin installation
+#
+
+# ---------------------------------------------------------------------------
+# Plugin arguments
+# ---------------------------------------------------------------------------
+
+COMMAND=$0
+PTEMPDIR=$1
+PSHNAME=$2
+PDIR=$3
+PVERSION=$4
+PTEMPPATH=$6
+
+# ---------------------------------------------------------------------------
+# LoxBerry paths
+# ---------------------------------------------------------------------------
+
 PCGI=$LBPCGI/$PDIR
 PHTML=$LBPHTML/$PDIR
 PTEMPL=$LBPTEMPL/$PDIR
 PDATA=$LBPDATA/$PDIR
-PLOG=$LBPLOG/$PDIR # Note! This is stored on a Ramdisk now!
+PLOG=$LBPLOG/$PDIR
 PCONFIG=$LBPCONFIG/$PDIR
 PSBIN=$LBPSBIN/$PDIR
 PBIN=$LBPBIN/$PDIR
- 
-if [ -e "$PDATA/fhem.pl" ]; then
-	echo "<INFO> Found existing FHEM installation from old installation. Migrating to new installation..."
-	echo "<INFO> Copying files from existing FHEM installation..."
-	chown -R fhem:dialout $PDATA/*
-	cp -an $PDATA/* /opt/fhem
-	mkdir $PDATA/oldinstall
-	mv $PDATA/* $PDATA/oldinstall
-	cp $PCONFIG/fhem.cfg /opt/fhem
-	mv $PCONFIG/fhem.cfg $PCONFIG/fhem.cfg.oldinstall
-	echo "<INFO> Adjust FHEM config to some default values..."
-	/bin/sed -i 's:^define initialUsbCheck notify:#define initialUsbCheck notify:g' /opt/fhem/fhem.cfg
-	/bin/sed -i 's:/loxberry/log/plugins/fhem/fhem.log:/fhem/log/fhem-%Y-%m.log:g' /opt/fhem/fhem.cfg
-	/bin/sed -i 's:/loxberry/data/plugins/fhem/fhem.save:/fhem/fhem.save:g' /opt/fhem/fhem.cfg
-	/bin/sed -i 's:/loxberry/log/plugins/fhem/%NAME.log:/fhem/log/%NAME.log:g' /opt/fhem/fhem.cfg
-	/bin/sed -i 's:/loxberry/data/plugins/fhem/eventTypes.txt:/fhem/eventTypes.txt:g' /opt/fhem/fhem.cfg
-else
-	echo "<INFO> Adjust FHEM config to some default values..."
-	/bin/sed -i 's:^define initialUsbCheck notify:#define initialUsbCheck notify:g' /opt/fhem/fhem.cfg
+
+FHEM_HOME="/opt/fhem"
+FHEM_CFG="$FHEM_HOME/fhem.cfg"
+
+# ---------------------------------------------------------------------------
+# Check installation
+# ---------------------------------------------------------------------------
+
+if ! dpkg -s fhem >/dev/null 2>&1; then
+    echo "<ERROR> FHEM package is not installed."
+    exit 1
 fi
-chown fhem:dialout /opt/fhem/fhem.cfg
 
-echo "<INFO> Killing any older FHEM instances..."
-pkill -f "/usr/bin/perl fhem.pl"
+if [ ! -d "$FHEM_HOME" ]; then
+    echo "<ERROR> $FHEM_HOME does not exist."
+    exit 1
+fi
 
-echo "<INFO> Enabling FHEM System Service..."
-systemctl enable fhem
-systemctl start fhem
+if ! id fhem >/dev/null 2>&1; then
+    echo "<ERROR> User 'fhem' does not exist."
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Migrate old installation
+# ---------------------------------------------------------------------------
+
+if [ -f "$PDATA/fhem.pl" ]; then
+
+    echo "<INFO> Found old FHEM installation."
+    echo "<INFO> Migrating data..."
+
+    chown -R fhem:dialout "$PDATA"
+
+    cp -an "$PDATA"/. "$FHEM_HOME"/
+
+    mkdir -p "$PDATA/oldinstall"
+
+    find "$PDATA" -mindepth 1 -maxdepth 1 ! -name oldinstall -exec mv {} "$PDATA/oldinstall/" \;
+
+    if [ -f "$PCONFIG/fhem.cfg" ]; then
+        cp "$PCONFIG/fhem.cfg" "$FHEM_CFG"
+        mv "$PCONFIG/fhem.cfg" "$PCONFIG/fhem.cfg.oldinstall"
+    fi
+
+fi
+
+# ---------------------------------------------------------------------------
+# Configure FHEM
+# ---------------------------------------------------------------------------
+
+if [ -f "$FHEM_CFG" ]; then
+
+    echo "<INFO> Adjusting FHEM configuration..."
+
+    sed -i \
+        -e 's:^define initialUsbCheck notify:#define initialUsbCheck notify:g' \
+        -e 's:/loxberry/log/plugins/fhem/fhem.log:/fhem/log/fhem-%Y-%m.log:g' \
+        -e 's:/loxberry/data/plugins/fhem/fhem.save:/fhem/fhem.save:g' \
+        -e 's:/loxberry/log/plugins/fhem/%NAME.log:/fhem/log/%NAME.log:g' \
+        -e 's:/loxberry/data/plugins/fhem/eventTypes.txt:/fhem/eventTypes.txt:g' \
+        "$FHEM_CFG"
+
+    chown fhem:dialout "$FHEM_CFG"
+
+else
+    echo "<WARNING> FHEM configuration not found."
+fi
+
+# ---------------------------------------------------------------------------
+# Stop old processes
+# ---------------------------------------------------------------------------
+
+echo "<INFO> Stopping running FHEM..."
+
+pkill -TERM -f "fhem.pl" >/dev/null 2>&1
+
+sleep 2
+
+pkill -KILL -f "fhem.pl" >/dev/null 2>&1
+
+# ---------------------------------------------------------------------------
+# Enable service
+# ---------------------------------------------------------------------------
+
+if systemctl list-unit-files | grep -q '^fhem.service'; then
+
+    echo "<INFO> Enabling FHEM service..."
+
+    systemctl daemon-reload
+    systemctl enable fhem
+    systemctl restart fhem
+
+    echo "<OK> FHEM service started."
+
+else
+    echo "<WARNING> fhem.service not found."
+fi
 
 exit 0

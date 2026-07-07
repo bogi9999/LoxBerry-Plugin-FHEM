@@ -1,41 +1,58 @@
 #!/bin/bash
 
-pluginname=REPLACELBPPLUGINDIR
+#
+# FHEM service helper for LoxBerry
+#
 
-PATH="/sbin:/bin:/usr/sbin:/usr/bin:$LBHOMEDIR/bin:$LBHOMEDIR/sbin"
+PLUGINNAME="fhem"
 
-ENVIRONMENT=$(cat /etc/environment)
-export $ENVIRONMENT
+# Load LoxBerry environment
+if [ -f /etc/environment ]; then
+    set -a
+    . /etc/environment
+    set +a
+fi
+
+PATH="/sbin:/bin:/usr/sbin:/usr/bin:${LBHOMEDIR}/bin:${LBHOMEDIR}/sbin"
+
+SERVICE="fhem.service"
 
 is_running() {
-	/bin/ps -C "perl fhem.pl" -opid= > /dev/null 2>&1
+    systemctl is-active --quiet "$SERVICE"
 }
 
 case "$1" in
-start)
-	systemctl start fhem.service
-	exit 0
-;;
-stop)
-	systemctl stop fhem.service
-	exit 0
-;;
-restart)
-	systemctl restart fhem.service
-	exit 0
-;;
-status)
-	if is_running; then
-		PID=`/bin/ps -C "perl fhem.pl" -opid=`
-		echo "Fhem is running. PID: $PID"
-	else
-		echo "Fhem is stopped."
-		exit 1
-	fi
-;;
-*)
-	echo "Usage: $0 [start|stop|restart|status]" >&2
-	exit 3
-;;
+    start)
+        systemctl start "$SERVICE"
+        ;;
 
+    stop)
+        systemctl stop "$SERVICE"
+        ;;
+
+    restart)
+        systemctl restart "$SERVICE"
+        ;;
+
+    status)
+        if is_running; then
+            PID=$(pgrep -f "perl fhem.pl" | head -n1)
+            if [ -n "$PID" ]; then
+                echo "FHEM is running (PID $PID)"
+            else
+                echo "FHEM service is running."
+            fi
+            exit 0
+        else
+            echo "FHEM is stopped."
+            exit 1
+        fi
+        ;;
+
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 3
+        ;;
 esac
+
+exit 0

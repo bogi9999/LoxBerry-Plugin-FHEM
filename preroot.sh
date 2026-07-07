@@ -1,63 +1,90 @@
 #!/bin/bash
- 
-# Shell script which is executed *BEFORE* installation is started
-# (*BEFORE* preinstall and *BEFORE* preupdate). Use with caution and remember,
-# that all systems may be different!
+
 #
-# Exit code must be 0 if executed successfull.
-# Exit code 1 gives a warning but continues installation.
-# Exit code 2 cancels installation.
+# FHEM Plugin - preroot.sh
+# Executed as root before plugin installation
 #
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# Will be executed as user "root".
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#
-# You can use all vars from /etc/environment in this script.
-#
-# We add 5 additional arguments when executing this script:
-# command <TEMPFOLDER> <NAME> <FOLDER> <VERSION> <BASEFOLDER>
-#
-# For logging, print to STDOUT. You can use the following tags for showing
-# different colorized information during plugin installation:
-#
-# <OK> This was ok!"
-# <INFO> This is just for your information."
-# <WARNING> This is a warning!"
-# <ERROR> This is an error!"
-# <FAIL> This is a fail!"
- 
-# To use important variables from command line use the following code:
-COMMAND=$0    # Zero argument is shell command
-PTEMPDIR=$1   # First argument is temp folder during install
-PSHNAME=$2    # Second argument is Plugin-Name for scipts etc.
-PDIR=$3       # Third argument is Plugin installation folder
-PVERSION=$4   # Forth argument is Plugin version
-#LBHOMEDIR=$5 # Comes from /etc/environment now. Fifth argument is
-              # Base folder of LoxBerry
-PTEMPPATH=$6  # Sixth argument is full temp path during install (see also $1)
- 
-# Combine them with /etc/environment
+
+# ---------------------------------------------------------------------------
+# Plugin arguments
+# ---------------------------------------------------------------------------
+
+COMMAND=$0
+PTEMPDIR=$1
+PSHNAME=$2
+PDIR=$3
+PVERSION=$4
+PTEMPPATH=$6
+
+# ---------------------------------------------------------------------------
+# LoxBerry paths
+# ---------------------------------------------------------------------------
+
 PCGI=$LBPCGI/$PDIR
 PHTML=$LBPHTML/$PDIR
 PTEMPL=$LBPTEMPL/$PDIR
 PDATA=$LBPDATA/$PDIR
-PLOG=$LBPLOG/$PDIR # Note! This is stored on a Ramdisk now!
+PLOG=$LBPLOG/$PDIR
 PCONFIG=$LBPCONFIG/$PDIR
 PSBIN=$LBPSBIN/$PDIR
 PBIN=$LBPBIN/$PDIR
- 
-echo "<INFO> Adding FHEM Repository to apt..."
-wget -qO - http://debian.fhem.de/archive.key | apt-key add -
-echo "deb http://debian.fhem.de/nightly/ /" > /etc/apt/sources.list.d/fhem.list
+
+# ---------------------------------------------------------------------------
+# Add FHEM repository
+# ---------------------------------------------------------------------------
+
+echo "<INFO> Adding FHEM Repository..."
+
+mkdir -p /etc/apt/keyrings
+
+# Install repository key only if it doesn't already exist
+if [ ! -f /etc/apt/keyrings/fhem.gpg ]; then
+
+    echo "<INFO> Downloading FHEM repository key..."
+
+    if ! curl -fsSL https://debian.fhem.de/archive.key \
+        | gpg --dearmor -o /etc/apt/keyrings/fhem.gpg; then
+
+        echo "<ERROR> Failed to install FHEM repository key."
+        exit 1
+    fi
+
+    chmod 644 /etc/apt/keyrings/fhem.gpg
+fi
+
+# Configure repository
+cat >/etc/apt/sources.list.d/fhem.list <<EOF
+deb [signed-by=/etc/apt/keyrings/fhem.gpg] https://debian.fhem.de/nightly/ /
+EOF
+
+# ---------------------------------------------------------------------------
+# Update package lists
+# ---------------------------------------------------------------------------
 
 echo "<INFO> Updating apt databases..."
-apt-get -q -y update
 
-if pgrep -f fhem > /dev/null 2>&1 ; then
-	echo "<INFO> Killing an existing FHEM..."
-        pkill -f fhem
-        sleep 0.1
-        pkill -9 -f fhem
+if ! apt-get -q -y update; then
+    echo "<ERROR> apt update failed."
+    exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# Stop running FHEM instance
+# ---------------------------------------------------------------------------
+
+if pgrep -f fhem >/dev/null 2>&1; then
+
+    echo "<INFO> Stopping running FHEM..."
+
+    pkill -TERM -f fhem
+    sleep 2
+
+    if pgrep -f fhem >/dev/null 2>&1; then
+        echo "<WARNING> FHEM still running - forcing shutdown..."
+        pkill -KILL -f fhem
+    fi
+fi
+
+echo "<OK> FHEM repository successfully configured."
 
 exit 0
