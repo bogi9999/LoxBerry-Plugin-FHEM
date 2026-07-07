@@ -41,6 +41,12 @@ The plugin has been updated to support current Debian releases while maintaining
 
 ## Changes in Version 0.7.0
 
+Original Repository:
+https://github.com/mschlenstedt/LoxBerry-Plugin-FHEM
+
+Community Repository:
+https://github.com/bogi9999/LoxBerry-Plugin-FHEM
+
 ### Fixed
 
 - Replaced deprecated `apt-key` with modern `signed-by` repository handling.
@@ -106,12 +112,10 @@ deb [signed-by=/etc/apt/keyrings/fhem.gpg] https://debian.fhem.de/nightly/ /
 ## Project
 
 Original Plugin
-
 Michael Schlenstedt
 
-https://plugins.loxberry.de/
-
-https://www.loxwiki.eu/
+https://wiki.loxberry.de/
+https://wiki.loxberry.de/plugins/fhem/start
 
 ---
 
